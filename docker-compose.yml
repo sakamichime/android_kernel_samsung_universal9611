@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # 单设备内核构建
+  kernel-build:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prebuild
+      args:
+        - BUILD_DATE=${BUILD_DATE:-}
+        - KERNEL_VERSION=4.14.356
+    image: exynos9611-kernel:latest
+    container_name: exynos9611-kernel-build
+    volumes:
+      # 挂载工具链（如果不在项目目录内）
+      - ./toolchain:/kernel/toolchain:ro
+      # 输出目录映射
+      - ./output:/kernel/output
+      # ccache 加速重复构建
+      - kernel-ccache:/root/.ccache
+    environment:
+      - ALLOW_DIRTY=0
+      - CCACHE_DIR=/root/.ccache
+    # 默认构建 a51，可通过命令行覆盖
+    command: ["--target", "a51"]
+
+  # 全量预编译所有设备
+  kernel-prebuild-all:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prebuild
+      args:
+        - BUILD_DATE=${BUILD_DATE:-}
+        - KERNEL_VERSION=4.14.356
+    image: exynos9611-kernel:latest
+    container_name: exynos9611-kernel-prebuild
+    volumes:
+      - ./toolchain:/kernel/toolchain:ro
+      - ./output:/kernel/output
+      - kernel-ccache:/root/.ccache
+    environment:
+      - ALLOW_DIRTY=0
+      - CCACHE_DIR=/root/.ccache
+    command: ["--all"]
+
+  # 仅生成 defconfig
+  kernel-defconfig:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prebuild
+    image: exynos9611-kernel:latest
+    container_name: exynos9611-kernel-defconfig
+    volumes:
+      - ./toolchain:/kernel/toolchain:ro
+    command: ["--defconfig", "a51"]
+
+  # 发布镜像（仅包含预编译产物）
+  kernel-release:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: release
+      args:
+        - BUILD_DATE=${BUILD_DATE:-}
+        - KERNEL_VERSION=4.14.356
+        - TARGET_DEVICES=a51,f41,m31s,m31,m21,gta4xl,gta4xlwifi
+    image: exynos9611-kernel:release
+    container_name: exynos9611-kernel-release
+
+volumes:
+  kernel-ccache:
+    driver: local
